@@ -1,162 +1,121 @@
 package main
 
 import (
-	"fmt"
-	"time"
+	"github.com/labstack/echo/v4/middleware"
+	"io"
+	"net/http"
+	"os"
+
+	"github.com/labstack/echo/v4"
 )
 
 func main() {
-	//bien, kieu du lieu, func, cau truc du lieu, oop, go routine, channel
-	//simple
+	e := echo.New()
+	/* middleware - start */
+	e.Use(middleware.Logger())
 
-	//demo1Variable()
-	//demo2Func()
-	//demo3DataStructure()
-	//demo4OOP()
-	//demo5GoRoutine()
-	demo6GoChannel()
-}
+	e.Use(middleware.Recover())
 
-func demo6GoChannel() {
-	c := make(chan int)
-	go func() {
-		c <- 100 // đẩy giá trị 100 vào channel
-	}()
+	// Group level middleware
+	g := e.Group("/admin")
+	g.Use(middleware.BasicAuth(func(username, password string, c echo.Context) (bool, error) {
+		if username == "joe" && password == "secret" {
+			return true, nil
+		}
+		return false, nil
+	}))
 
-	go func() {
-		fmt.Println(<-c)
-	}()
-
-	time.Sleep(time.Second)
-}
-
-/*demo 5 - starts*/
-
-func demo5GoRoutine() {
-	//go fun1
-	go g1()
-
-	go func() {
-		fmt.Println("2")
-	}()
-
-	time.Sleep(time.Second)
-}
-
-func g1() {
-	fmt.Println("1")
-}
-
-/*demo 5 - ends*/
-
-/*demo 4 - starts*/
-type Student struct {
-	//class
-	firstName string
-	lastName  string
-	email     string
-}
-
-//value receiver method - bản sao, không thay đổi giá trị bản gốc
-func (s Student) getEmail() string {
-	s.email = "frankdev@gmail.com"
-	return s.email
-}
-
-//pointer receiver method - thay đổi giá trị bản gốc
-func (s *Student) getEmailPointer() string {
-	s.email = "frankdev@gmail.com"
-	return s.email
-}
-
-func demo4OOP() {
-	st := Student{
-		firstName: "An",
-		lastName:  "Le",
-		email:     "anle@gmail.com",
+	// Route level middleware
+	track := func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			println("request to /users")
+			return next(c)
+		}
 	}
-	st.firstName = "Frank"
-	fmt.Println(st)
-	fmt.Println("=====Value Receiver Method=======")
-	e := st.getEmail()
-	fmt.Println(e)
-	fmt.Println(st.email)
+	e.GET("/users", func(c echo.Context) error {
+		return c.String(http.StatusOK, "/users")
+	}, track)
+	/* middleware - end */
 
-	fmt.Println("=====Pointer Receive Method=======")
-	ePointer := st.getEmailPointer()
-	fmt.Println(ePointer)
-	fmt.Println(st.email)
+	e.GET("/", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Hello, Go lang!")
+	})
+	e.GET("/users/:id", getUser)
+	e.GET("/show", show)
+	e.POST("/save", save)
+	e.POST("/saveAvatar", saveAvatar)
+
+	e.POST("/users", getUserJson)
+	e.Static("/static", "static")
+
+	e.Logger.Fatal(e.Start(":3000"))
 }
 
-/*demo 4 - ends*/
-
-func demo3DataStructure() {
-	//slice - mở rộng array
-	//array - fix số lượng phần tử - giống list: cần thì append
-	//slice, map, array
-
-	//slice
-	fmt.Println("===============Slice===============")
-	s := make([]string, 0)
-	s = append(s, "Android")
-	s = append(s, "iOS")
-	s = append(s, "NodeJS")
-	s = append(s, "Golang")
-	fmt.Println(s)
-
-	//map
-	fmt.Println("===============Map===============")
-	m := make(map[string]int)
-	//key-value
-	m["key1"] = 30
-	m["key2"] = 10
-	fmt.Println(m["key1"])
-	fmt.Println(m["key2"])
-	fmt.Println(m)
-
-	//array
-	fmt.Println("===============Array===============")
-	arr := [1]string{}
-	arr[0] = "Chelsea"
-
-	fmt.Println(arr)
+// e.GET("/users/:id", getUser)
+func getUser(c echo.Context) error {
+	// User ID from path `users/:id`
+	id := c.Param("id")
+	return c.String(http.StatusOK, id)
 }
 
-func demo2Func() {
-	total := sum(1, 4)
-	fmt.Println(total)
+//e.GET("/show", show)
+func show(c echo.Context) error {
+	// Get team and member from the query string
+	team := c.QueryParam("team")
+	member := c.QueryParam("member")
+	return c.String(http.StatusOK, "team:"+team+", member:"+member)
 }
 
-func sum(a int, b int) int {
-	return a + b
+// e.POST("/save", save)
+func save(c echo.Context) error {
+	// Get name and email
+	name := c.FormValue("name")
+	email := c.FormValue("email")
+	return c.String(http.StatusOK, "name:"+name+", email:"+email)
 }
 
-func demo1Variable() {
-	//method 1
-	var email string = "abc@gmail.com"
-	var name = "Anle"
-	var age = 29
-	fmt.Println(email)
-	fmt.Println(name)
-	fmt.Printf("%T", email)
-	fmt.Println()
-	fmt.Printf("%V", email)
-	fmt.Println()
-	fmt.Printf("%T", age)
-	fmt.Println()
+func saveAvatar(c echo.Context) error {
+	// Get name
+	name := c.FormValue("name")
+	// Get avatar
+	avatar, err := c.FormFile("avatar")
+	if err != nil {
+		return err
+	}
 
-	//method 2
-	fullName := "Le Thanh An"
-	fmt.Println(fullName)
-	fmt.Printf("%T", fullName)
-	fmt.Println()
+	// Source
+	src, err := avatar.Open()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
 
-	var number = 10
-	var numberFloat = 10.123
-	fmt.Println(number)
-	fmt.Printf("%T", number)
-	fmt.Println()
-	fmt.Println(numberFloat)
-	fmt.Printf("%T", numberFloat)
-	fmt.Println()
+	// Destination
+	dst, err := os.Create(avatar.Filename)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	// Copy
+	if _, err = io.Copy(dst, src); err != nil {
+		return err
+	}
+
+	return c.HTML(http.StatusOK, "<b>Thank you! "+name+"</b>")
+}
+
+type User struct {
+	Name  string `json:"name" xml:"name" form:"name" query:"name"`
+	Email string `json:"email" xml:"email" form:"email" query:"email"`
+}
+
+func getUserJson(c echo.Context) error {
+	u := new(User)
+	if err := c.Bind(u); err != nil {
+		return err
+	}
+	return c.JSON(http.StatusCreated, u)
+	// or
+	// return c.XML(http.StatusCreated, u)
 }
